@@ -2,7 +2,8 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import random
 import math
-import os
+#for type hints:
+from typing import List
 
 #for plotting image
 def create_subplot():
@@ -10,14 +11,14 @@ def create_subplot():
     return axes
 
 #for saving plotted image to file
-def render_axes(axes, title, output_path):
+def render_axes(axes, title: str, output_path: str):
     axes.set_title(title, fontsize = 14)
     plt.grid(True)
     plt.savefig(output_path, dpi=300)#, bbox_inches='tight')
     print(f"Result image saved as {output_path}")
 
 #find angle of the line relative to horizon (0-180 degrees)
-def find_angle(p1,p2):
+def find_angle(p1: tuple,p2: tuple) -> float:
     if p1[1]>p2[1]:
         p1, p2 = p2, p1
     dx = p1[0]-p2[0]
@@ -29,9 +30,14 @@ def find_angle(p1,p2):
 
 #graph structure for the algorithm
 
+#connection between two verteces
+class Edge:
+    def __init__(self, vertex):
+        self.vertex = vertex
+
 #represents a segment of the road and branchings from the segment to other segments
 class Vertex: 
-    def __init__(self, index, angle, is_used = False, is_starter = False):
+    def __init__(self, index: int, angle: float, is_used: bool = False, is_starter: bool = False):
         self.edges = []
         self.index = index
         self.angle = angle #relative to horizon
@@ -41,71 +47,30 @@ class Vertex:
     def add_edge(self, vertex):
         self.edges.append(Edge(vertex))
 
-    def get_edges(self): #show all available neighbours of the street
+    def get_edges(self) -> List[Edge]: #show all available neighbours of the street
         return [x for x in self.edges if x.vertex.is_used == False]
-    
-    #def get_num_available_nghbrs(self):
-    #    return len([x for x in self.edges if x.vertex.is_used == False])
-
-#connection between two verteces
-class Edge:
-    def __init__(self, vertex):
-        self.vertex = vertex
 
 #the graph itself
 class Graph:
     def __init__(self):
         self.verteces = {}
 
-    def add_vertex(self, index, angle, is_used = False, is_starter = False):
+    def add_vertex(self, index: int, angle: float, is_used: bool = False, is_starter: bool = False):
         self.verteces[index] = Vertex(index, angle, is_used, is_starter)
 
-    def get_vertex(self, index):
+    def get_vertex(self, index: int) -> List[Vertex]:
         return self.verteces[index]
     
-    def add_edge(self, index1, index2):
+    def add_edge(self, index1: int, index2: int):
         v1 = self.get_vertex(index1)
         v2 = self.get_vertex(index2)
         v1.add_edge(v2)
         v2.add_edge(v1) #since we have undirected graph - we do connection "v1 to v2" and "v2 to v1"
 
-    def set_if_starter(self, index, is_starter):
+    def set_if_starter(self, index: int, is_starter: bool):
         self.verteces[index].is_starter = is_starter
 
-#solution 1
-def make_decision(curr_vertex, neighbour_list):
-    if len(neighbour_list) == 0:
-        return None
-    if len(neighbour_list) == 1:
-        return neighbour_list[0].vertex
-    if len(neighbour_list) == 2:
-        a = curr_vertex.angle
-        a1 = neighbour_list[0].vertex.angle
-        a2 = neighbour_list[1].vertex.angle
-
-        dif1 = 90-abs(abs(a-a1)-90)
-        dif2 = 90-abs(abs(a-a2)-90)
-        #if it's dead end between to other segments
-        if dif1>60 and dif2>60:
-            return None
-        #otherwise we chose the one with the smallest difference
-        if dif1<dif2:
-            return neighbour_list[0].vertex
-        else:
-            return neighbour_list[1].vertex
-    
-    if len(neighbour_list) > 2: # here is same logic as with 2 neighbours, but cycled
-        a = curr_vertex.angle
-        diffs = []
-        for vert in neighbour_list:
-            diffs.append(90-abs(abs(a-vert.vertex.angle)-90))
-        minimum = min(diffs)
-        if minimum>45:
-            return None
-        return neighbour_list[diffs.index(minimum)].vertex
-
-#solution 2
-def make_decision(curr_vertex, neighbour_list, xy):
+def make_decision(curr_vertex: Vertex, neighbour_list: List[Edge], xy: List[List[tuple]]) -> Vertex:
     if len(neighbour_list) == 0:
         return None
     if len(neighbour_list) == 1:
@@ -165,18 +130,6 @@ def solve_the_problem(gdf: gpd.GeoDataFrame, output_path: str = None):
     #copy the initial data to list of lists, where one element = one segment
     xy = gdf.geometry.apply(lambda geom: list(geom.coords))
     
-    '''
-    #printing picture by segments
-    for _, row in gdf.iterrows():
-        if row.geometry.geom_type == "LineString":
-            axes.plot(
-                row.geometry.xy[0],
-                row.geometry.xy[1],
-                color=(0,1,0),
-                linewidth=1
-            )
-    '''
-
     #creating graph
 
     graph = Graph()
@@ -220,7 +173,6 @@ def solve_the_problem(gdf: gpd.GeoDataFrame, output_path: str = None):
                 graph.add_edge(i,j)
             j=j+1
         
-        #graph.add_vertex(i,calculate_angle(xy[i][0],xy[i][-1]),True if starts_ends_overlaps_count[i][0] == 0 or starts_ends_overlaps_count[i][1] == 0 else False)
         graph.set_if_starter(i,True if starts_ends_overlaps_count[i][0] == 0 or starts_ends_overlaps_count[i][1] == 0 else False)
         i=i+1
     
@@ -229,11 +181,6 @@ def solve_the_problem(gdf: gpd.GeoDataFrame, output_path: str = None):
 
     #list of starter verteces
     starter_list = [ix for ix in range(size) if graph.get_vertex(ix).is_starter == True]
-    '''
-    for i in range(size):
-        if graph.get_vertex(i).is_starter == True:
-            starter_list.append(i)
-    '''
     
     #here starts the algorithm itself:
     while(len(starter_list)>0):
@@ -246,11 +193,7 @@ def solve_the_problem(gdf: gpd.GeoDataFrame, output_path: str = None):
                     #find first crossroad point
                     i1 = v.get_edges()[0].vertex.index
                     i2 = v.index
-                    tmp = xy[i2].index(list(set(xy[i1]).intersection(set(xy[i2])))[0]) #[x for x in xy[i1] if (x in xy[i2])][0]
-                    #for pt in xy[i1]:
-                    #    if pt in xy[i2]:
-                    #        crossroad = pt
-                    #        break
+                    tmp = xy[i2].index(list(set(xy[i1]).intersection(set(xy[i2])))[0])
                     if tmp == 0:
                         tmp = -1
                     else:
@@ -262,11 +205,7 @@ def solve_the_problem(gdf: gpd.GeoDataFrame, output_path: str = None):
                         #since available neighbours can be on both sides of the segment - we filter only those, that in the right direction
                         available_nghbrs = [x for x in v.get_edges() if (crossroad not in xy[x.vertex.index])]
                         
-                        #make decision, which segment will be next added to the street
-                        #solution 1
-                        #choosen_one = make_decision(v, available_nghbrs)
-
-                        #solution 2
+                        #make decision, which segment will be next
                         choosen_one = make_decision(v, available_nghbrs, xy)
                         
                         #if the coosen_one is non-empty vertex
