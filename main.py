@@ -311,7 +311,7 @@ def solve_the_problem(gdf: gpd.GeoDataFrame, output_path: str = None):
             )
     
     #output of result to file
-    render_axes(axes, f"Visualization of {output_path} - lines as they are", output_path)
+    render_axes(axes, f"Visualization of streets [{output_path}]", output_path)
 
 if __name__ == "__main__":
     gdf = gpd.read_file("sample/roads.shp")
