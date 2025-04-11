@@ -99,3 +99,13 @@ func main():
     segments = read_segments("input/path/file.shp")
     streets = find_streets(segments)
     print_result(streets, "output/path/file.png")
+
+
+'''
+choose starter segment
+find the crossroad for it
+find all neighbours that contain the crossroad
+choose the best of them
+
+
+'''
